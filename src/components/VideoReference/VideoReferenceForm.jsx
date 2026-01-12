@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { videoReferencesAPI, categoriesAPI } from '../../services/api';
+import { videoReferencesAPI, categoriesAPI, tutorialsAPI } from '../../services/api';
 import './VideoReferenceForm.css';
 
 const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
   const [categories, setCategories] = useState([]);
+  const [tutorials, setTutorials] = useState([]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -30,6 +31,7 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
 
   useEffect(() => {
     loadCategories();
+    loadTutorials();
     if (video) {
       loadVideoData();
     }
@@ -41,6 +43,15 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
       setCategories(response.data.data);
     } catch (error) {
       console.error('Error loading categories:', error);
+    }
+  };
+
+  const loadTutorials = async () => {
+    try {
+      const response = await tutorialsAPI.getAll();
+      setTutorials(response.data.data);
+    } catch (error) {
+      console.error('Error loading tutorials:', error);
     }
   };
 
@@ -71,7 +82,14 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
         search_profile: data.search_profile || '',
         search_metadata: data.search_metadata || '',
         tags: tagsString,
-        tutorials: data.tutorials || [],
+        tutorials: (data.tutorials || []).map(t => ({
+          mode: 'select', // При редактировании всегда select, так как tutorial уже существует
+          tutorial_id: t.id,
+          tutorial_url: t.tutorial_url || '',
+          label: t.label || '',
+          start_sec: t.start_sec || '',
+          end_sec: t.end_sec || '',
+        })),
       });
     } catch (error) {
       console.error('Error loading video data:', error);
@@ -90,10 +108,42 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
   const handleTutorialChange = (index, field, value) => {
     setFormData(prev => {
       const tutorials = [...prev.tutorials];
-      tutorials[index] = {
-        ...tutorials[index],
-        [field]: value,
-      };
+      const currentTutorial = tutorials[index] || {};
+      
+      if (field === 'mode') {
+        // При переключении mode очищаем соответствующие поля
+        if (value === 'select') {
+          // Переключаемся на select - очищаем tutorial_url и label
+          tutorials[index] = {
+            ...currentTutorial,
+            mode: 'select',
+            tutorial_id: '',
+            tutorial_url: '',
+            label: '',
+            // Сохраняем start_sec и end_sec
+            start_sec: currentTutorial.start_sec || '',
+            end_sec: currentTutorial.end_sec || '',
+          };
+        } else {
+          // Переключаемся на new - очищаем tutorial_id
+          tutorials[index] = {
+            ...currentTutorial,
+            mode: 'new',
+            tutorial_id: '',
+            tutorial_url: currentTutorial.tutorial_url || '',
+            label: currentTutorial.label || '',
+            // Сохраняем start_sec и end_sec
+            start_sec: currentTutorial.start_sec || '',
+            end_sec: currentTutorial.end_sec || '',
+          };
+        }
+      } else {
+        tutorials[index] = {
+          ...currentTutorial,
+          [field]: value,
+        };
+      }
+      
       return { ...prev, tutorials };
     });
   };
@@ -101,7 +151,14 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
   const addTutorial = () => {
     setFormData(prev => ({
       ...prev,
-      tutorials: [...prev.tutorials, { tutorial_url: '', label: '', start_sec: '', end_sec: '' }],
+      tutorials: [...prev.tutorials, { 
+        mode: 'new', 
+        tutorial_id: '', 
+        tutorial_url: '', 
+        label: '', 
+        start_sec: '', 
+        end_sec: '' 
+      }],
     }));
   };
 
@@ -125,17 +182,29 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
             .filter(tag => tag.length > 0)
         : [];
 
-      // Prepare tutorials data - фильтруем и убираем null значения
+      // Prepare tutorials data с учетом mode
       const tutorials = formData.tutorials
-        .filter(t => t.tutorial_url || (t.label && t.start_sec && t.end_sec))
-        .map(t => {
-          const tutorial = {};
-          if (t.tutorial_url && t.tutorial_url.trim()) {
-            tutorial.tutorial_url = t.tutorial_url.trim();
+        .filter(t => {
+          // Фильтруем только заполненные tutorials
+          if (t.mode === 'select') {
+            return t.tutorial_id; // В режиме select нужен tutorial_id
+          } else {
+            return t.tutorial_url && t.label; // В режиме new нужны оба поля
           }
-          if (t.label && t.label.trim()) {
+        })
+        .map(t => {
+          const tutorial = {
+            mode: t.mode || 'new',
+          };
+          
+          if (t.mode === 'select') {
+            tutorial.tutorial_id = parseInt(t.tutorial_id);
+          } else {
+            tutorial.tutorial_url = t.tutorial_url.trim();
             tutorial.label = t.label.trim();
           }
+          
+          // Добавляем start_sec и end_sec если они заполнены
           if (t.start_sec && t.start_sec.toString().trim()) {
             const startSec = parseInt(t.start_sec);
             if (!isNaN(startSec) && startSec >= 0) {
@@ -148,9 +217,9 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
               tutorial.end_sec = endSec;
             }
           }
+          
           return tutorial;
-        })
-        .filter(t => Object.keys(t).length > 0); // Убираем пустые объекты
+        });
 
       // Формируем объект данных, исключая null и пустые значения
       const data = {
@@ -198,9 +267,8 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
         data.search_metadata = formData.search_metadata.trim();
       }
 
-      if (tutorials.length > 0) {
-        data.tutorials = tutorials;
-      }
+      // Всегда отправляем tutorials (даже если пустой массив) для явной синхронизации
+      data.tutorials = tutorials;
 
       if (video) {
         await videoReferencesAPI.update(video.id, data);
@@ -456,22 +524,71 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
                     Remove
                   </button>
                 </div>
+                
+                {/* Переключатель New/Select */}
                 <div className="form-group">
-                  <label>Tutorial URL</label>
-                  <input
-                    type="url"
-                    value={tutorial.tutorial_url || ''}
-                    onChange={(e) => handleTutorialChange(index, 'tutorial_url', e.target.value)}
-                  />
+                  <label>Mode</label>
+                  <div className="mode-toggle">
+                    <button
+                      type="button"
+                      className={`mode-btn ${(tutorial.mode || 'new') === 'new' ? 'active' : ''}`}
+                      onClick={() => handleTutorialChange(index, 'mode', 'new')}
+                    >
+                      New
+                    </button>
+                    <button
+                      type="button"
+                      className={`mode-btn ${(tutorial.mode || 'new') === 'select' ? 'active' : ''}`}
+                      onClick={() => handleTutorialChange(index, 'mode', 'select')}
+                    >
+                      Select
+                    </button>
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label>Label</label>
-                  <input
-                    type="text"
-                    value={tutorial.label || ''}
-                    onChange={(e) => handleTutorialChange(index, 'label', e.target.value)}
-                  />
-                </div>
+
+                {(tutorial.mode || 'new') === 'select' ? (
+                  // Режим Select: показываем селектор существующих tutorials
+                  <>
+                    <div className="form-group">
+                      <label>Select Tutorial *</label>
+                      <select
+                        value={tutorial.tutorial_id || ''}
+                        onChange={(e) => handleTutorialChange(index, 'tutorial_id', e.target.value)}
+                      >
+                        <option value="">Select Tutorial</option>
+                        {tutorials.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.label || `Tutorial #${t.id}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  // Режим New: показываем поля для создания нового tutorial
+                  <>
+                    <div className="form-group">
+                      <label>Tutorial URL *</label>
+                      <input
+                        type="url"
+                        value={tutorial.tutorial_url || ''}
+                        onChange={(e) => handleTutorialChange(index, 'tutorial_url', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Label *</label>
+                      <input
+                        type="text"
+                        value={tutorial.label || ''}
+                        onChange={(e) => handleTutorialChange(index, 'label', e.target.value)}
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Поля start_sec и end_sec доступны в обоих режимах */}
                 <div className="form-row">
                   <div className="form-group">
                     <label>Start (sec)</label>

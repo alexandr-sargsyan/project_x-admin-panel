@@ -39,5 +39,10 @@ export const tagsAPI = {
   create: (data) => api.post('/tags', data),
 };
 
+// Tutorials API
+export const tutorialsAPI = {
+  getAll: () => api.get('/tutorials'),
+};
+
 export default api;
 
