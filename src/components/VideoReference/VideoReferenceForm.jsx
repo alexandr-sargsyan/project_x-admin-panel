@@ -12,7 +12,6 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
     source_url: '',
     preview_url: '',
     public_summary: '',
-    duration_sec: '',
     category_id: '',
     platform: '',
     pacing: '',
@@ -68,7 +67,6 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
         source_url: data.source_url || '',
         preview_url: data.preview_url || '',
         public_summary: data.public_summary || '',
-        duration_sec: data.duration_sec || '',
         category_id: data.category_id || '',
         platform: data.platform || '',
         pacing: data.pacing || '',
@@ -244,13 +242,6 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
         data.public_summary = formData.public_summary.trim();
       }
 
-      if (formData.duration_sec && formData.duration_sec.trim()) {
-        const duration = parseInt(formData.duration_sec);
-        if (!isNaN(duration) && duration > 0) {
-          data.duration_sec = duration;
-        }
-      }
-
       if (formData.pacing && formData.pacing.trim()) {
         data.pacing = formData.pacing.trim();
       }
@@ -338,17 +329,6 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
                 value={formData.public_summary}
                 onChange={handleChange}
                 rows="3"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Duration (seconds)</label>
-              <input
-                type="number"
-                name="duration_sec"
-                value={formData.duration_sec}
-                onChange={handleChange}
-                min="1"
               />
             </div>
 
