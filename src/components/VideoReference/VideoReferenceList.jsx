@@ -164,7 +164,7 @@ const VideoReferenceList = () => {
                   </a>
                 </td>
                 <td>{video.category?.name || '-'}</td>
-                <td>
+                <td className="actions-cell">
                   <button
                     onClick={() => handleEdit(video)}
                     className="btn btn-edit"
