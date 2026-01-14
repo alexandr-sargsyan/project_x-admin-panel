@@ -11,7 +11,6 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     title: '',
     source_url: '',
-    preview_url: '',
     public_summary: '',
     category_id: '',
     platform: '',
@@ -66,7 +65,6 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
       setFormData({
         title: data.title || '',
         source_url: data.source_url || '',
-        preview_url: data.preview_url || '',
         public_summary: data.public_summary || '',
         category_id: data.category_id || '',
         platform: data.platform || '',
@@ -230,10 +228,6 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
       };
 
       // Добавляем опциональные поля только если они не пустые
-      if (formData.preview_url && formData.preview_url.trim()) {
-        data.preview_url = formData.preview_url.trim();
-      }
-
       if (formData.public_summary && formData.public_summary.trim()) {
         data.public_summary = formData.public_summary.trim();
       }
@@ -305,16 +299,6 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
                 value={formData.source_url}
                 onChange={handleChange}
                 required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Preview URL</label>
-              <input
-                type="url"
-                name="preview_url"
-                value={formData.preview_url}
-                onChange={handleChange}
               />
             </div>
 
