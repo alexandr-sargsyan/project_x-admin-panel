@@ -8,33 +8,8 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
   const [categories, setCategories] = useState([]);
   const [tutorials, setTutorials] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  // Функция для построения плоского списка категорий с учетом иерархии
-  const buildCategoryOptions = (cats) => {
-    const options = [];
-    
-    // Рекурсивная функция для обхода всех категорий
-    const traverse = (categories) => {
-      categories.forEach(cat => {
-        // Если у категории есть подкатегории, пропускаем её и обрабатываем только children
-        if (cat.children && Array.isArray(cat.children) && cat.children.length > 0) {
-          // Рекурсивно обрабатываем подкатегории
-          traverse(cat.children);
-        } else {
-          // Добавляем только конечные категории (без подкатегорий)
-          // Префикс добавляем только для подкатегорий (когда есть parent_id)
-          const prefix = cat.parent_id ? '  └─ ' : '';
-          options.push({
-            id: cat.id,
-            name: prefix + cat.name,
-          });
-        }
-      });
-    };
-    
-    traverse(cats);
-    return options;
-  };
+  const [selectedParentCategoryId, setSelectedParentCategoryId] = useState('');
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState('');
 
   const [formData, setFormData] = useState({
     title: '',
@@ -58,10 +33,14 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
   useEffect(() => {
     loadCategories();
     loadTutorials();
-    if (video) {
+  }, []);
+
+  // Загружаем данные видео после загрузки категорий
+  useEffect(() => {
+    if (video && categories.length > 0) {
       loadVideoData();
     }
-  }, [video]);
+  }, [video, categories]);
 
   const loadCategories = async () => {
     try {
@@ -88,6 +67,40 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
       
       // Format tags as array
       const tagsArray = data.tags?.map(tag => tag.name) || [];
+
+      // Определяем родительскую категорию и подкатегорию
+      const selectedCategoryId = data.category_id;
+      let parentCategoryId = '';
+      let subcategoryId = '';
+
+      if (selectedCategoryId) {
+        // Ищем категорию во всех категориях (включая вложенные)
+        const findCategory = (cats, parentId = null) => {
+          for (const cat of cats) {
+            if (cat.id === selectedCategoryId) {
+              // Если это подкатегория (находится внутри children родительской категории)
+              if (parentId !== null) {
+                parentCategoryId = parentId;
+                subcategoryId = selectedCategoryId;
+              } else {
+                // Если это родительская категория (корневая)
+                parentCategoryId = selectedCategoryId;
+                subcategoryId = '';
+              }
+              return cat;
+            }
+            if (cat.children && Array.isArray(cat.children) && cat.children.length > 0) {
+              const found = findCategory(cat.children, cat.id);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        findCategory(categories);
+      }
+
+      setSelectedParentCategoryId(parentCategoryId);
+      setSelectedSubcategoryId(subcategoryId);
 
       setFormData({
         title: data.title || '',
@@ -127,6 +140,71 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
       [name]: type === 'checkbox' ? checked : value,
     }));
   };
+
+  // Обработка выбора родительской категории
+  const handleParentCategoryChange = (e) => {
+    const parentId = e.target.value;
+    setSelectedParentCategoryId(parentId);
+    setSelectedSubcategoryId(''); // Очищаем подкатегорию при смене родительской
+    
+    // Находим родительскую категорию
+    const findCategory = (cats) => {
+      for (const cat of cats) {
+        if (cat.id === parseInt(parentId)) {
+          return cat;
+        }
+        if (cat.children && Array.isArray(cat.children) && cat.children.length > 0) {
+          const found = findCategory(cat.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    const parentCategory = findCategory(categories);
+    
+    // Если у родительской категории нет подкатегорий, устанавливаем её как выбранную
+    if (parentCategory && (!parentCategory.children || parentCategory.children.length === 0)) {
+      setFormData(prev => ({ ...prev, category_id: parentId }));
+    } else {
+      // Если есть подкатегории, category_id будет установлен при выборе подкатегории
+      setFormData(prev => ({ ...prev, category_id: '' }));
+    }
+  };
+
+  // Обработка выбора подкатегории
+  const handleSubcategoryChange = (e) => {
+    const subcategoryId = e.target.value;
+    setSelectedSubcategoryId(subcategoryId);
+    setFormData(prev => ({ ...prev, category_id: subcategoryId }));
+  };
+
+  // Получаем корневые категории (parent_id === null)
+  const rootCategories = categories.filter(cat => !cat.parent_id);
+
+  // Получаем подкатегории выбранной родительской категории
+  const getSubcategories = () => {
+    if (!selectedParentCategoryId) return [];
+    
+    const findCategory = (cats) => {
+      for (const cat of cats) {
+        if (cat.id === parseInt(selectedParentCategoryId)) {
+          return cat;
+        }
+        if (cat.children && Array.isArray(cat.children) && cat.children.length > 0) {
+          const found = findCategory(cat.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    const parentCategory = findCategory(categories);
+    return parentCategory && parentCategory.children ? parentCategory.children : [];
+  };
+
+  const subcategories = getSubcategories();
+  const hasSubcategories = subcategories.length > 0;
 
   const handleTutorialChange = (index, field, value) => {
     setFormData(prev => {
@@ -197,6 +275,20 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
     setLoading(true);
 
     try {
+      // Валидация категории
+      if (!formData.category_id) {
+        toast.error('Please select a category');
+        setLoading(false);
+        return;
+      }
+
+      // Если выбрана родительская категория с подкатегориями, но не выбрана подкатегория
+      if (selectedParentCategoryId && hasSubcategories && !selectedSubcategoryId) {
+        toast.error('Please select a subcategory');
+        setLoading(false);
+        return;
+      }
+
       // Теги уже в формате массива
       const tagNames = formData.tags || [];
 
@@ -348,24 +440,48 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
           </div>
 
           <div className="form-section">
-            <h3>Filter Fields</h3>
+            <h3>Category Selection</h3>
 
-            <div className="form-group">
-              <label>Category *</label>
-              <select
-                name="category_id"
-                value={formData.category_id}
-                onChange={handleChange}
-                required
-              >
-                <option value="">Select Category</option>
-                {buildCategoryOptions(categories).map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+            <div className="category-selectors-row">
+              <div className="form-group">
+                <label>Parent Category *</label>
+                <select
+                  name="parent_category_id"
+                  value={selectedParentCategoryId}
+                  onChange={handleParentCategoryChange}
+                  required
+                >
+                  <option value="">Select Parent Category</option>
+                  {rootCategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Subcategory {hasSubcategories ? '*' : ''}</label>
+                <select
+                  name="subcategory_id"
+                  value={selectedSubcategoryId}
+                  onChange={handleSubcategoryChange}
+                  disabled={!hasSubcategories}
+                  required={hasSubcategories}
+                >
+                  <option value="">{hasSubcategories ? 'Select Subcategory' : 'No subcategories'}</option>
+                  {subcategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
+          </div>
+
+          <div className="form-section">
+            <h3>Filter Fields</h3>
 
             <div className="form-group">
               <label>Pacing</label>

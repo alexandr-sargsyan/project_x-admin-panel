@@ -91,6 +91,17 @@
   gap: 15px;
 }
 
+.category-selectors-row {
+  display: flex;
+  gap: 15px;
+  align-items: flex-end;
+}
+
+.category-selectors-row .form-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+
 .tutorial-item {
   background: #f9f9f9;
   padding: 15px;
