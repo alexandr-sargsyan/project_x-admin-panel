@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { videoReferencesAPI, categoriesAPI, tutorialsAPI } from '../../services/api';
 import TagsInput from './TagsInput';
+import CategoryModal from './CategoryModal';
+import TutorialEditor from './TutorialEditor';
 import './VideoReferenceForm.css';
 
 const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
@@ -9,7 +11,6 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
   const [tutorials, setTutorials] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
-  const [expandedCategories, setExpandedCategories] = useState({});
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -126,126 +127,6 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
     setFormData(prev => ({ ...prev, category_ids: newCategoryIds }));
   };
 
-  // Переключение раскрытия/сворачивания категории
-  const toggleCategoryExpand = (categoryId) => {
-    setExpandedCategories((prev) => ({
-      ...prev,
-      [categoryId]: !prev[categoryId],
-    }));
-  };
-
-  // Рекурсивная функция для отображения категорий (как на фронтенде)
-  const renderCategory = (category, level = 0) => {
-    const hasChildren = category.children && Array.isArray(category.children) && category.children.length > 0;
-    const isExpanded = expandedCategories[category.id];
-    const isSelected = selectedCategoryIds.includes(category.id);
-
-    return (
-      <div key={category.id} style={{ marginBottom: '4px' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 0',
-            paddingLeft: `${level * 20 + 12}px`,
-            cursor: 'pointer',
-            borderRadius: '4px',
-            backgroundColor: isSelected ? '#e3f2fd' : 'transparent',
-          }}
-          onMouseEnter={(e) => {
-            if (!isSelected) {
-              e.currentTarget.style.backgroundColor = '#f5f5f5';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isSelected) {
-              e.currentTarget.style.backgroundColor = 'transparent';
-            }
-          }}
-        >
-          {/* Чекбокс */}
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={(e) => handleCategoryToggle(category.id, e)}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: '18px',
-              height: '18px',
-              cursor: 'pointer',
-              flexShrink: 0,
-              margin: 0,
-            }}
-          />
-          
-          {/* Название категории */}
-          <label
-            onClick={() => handleCategoryToggle(category.id)}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: '14px',
-              color: isSelected ? '#1976d2' : '#333',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              flex: 1,
-              userSelect: 'none',
-              fontWeight: isSelected ? 500 : 'normal',
-              margin: 0,
-            }}
-          >
-            {category.name}
-          </label>
-          
-          {/* Стрелка для раскрытия подкатегорий */}
-          {hasChildren && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleCategoryExpand(category.id);
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: '#666',
-                padding: '2px 4px',
-                width: '24px',
-                height: '24px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                borderRadius: '4px',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = '#007bff';
-                e.currentTarget.style.backgroundColor = '#f0f7ff';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = '#666';
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              {isExpanded ? '▼' : '▶'}
-            </button>
-          )}
-        </div>
-        {hasChildren && isExpanded && (
-          <div style={{ marginLeft: 0 }}>
-            {category.children.map((child) => renderCategory(child, level + 1))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Получаем корневые категории (parent_id === null)
-  const rootCategories = categories.filter(cat => !cat.parent_id);
 
   // Получить выбранные категории как объекты
   const getSelectedCategories = () => {
@@ -277,8 +158,9 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
   };
 
   // Сохранить выбранные категории из модального окна
-  const handleCategoryModalSave = () => {
-    setFormData(prev => ({ ...prev, category_ids: selectedCategoryIds }));
+  const handleCategoryModalSave = (categoryIds) => {
+    setSelectedCategoryIds(categoryIds);
+    setFormData(prev => ({ ...prev, category_ids: categoryIds }));
     setIsCategoryModalOpen(false);
   };
 
@@ -514,95 +396,34 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
               <label>Select Categories (at least one required)</label>
               <div
                 onClick={() => setIsCategoryModalOpen(true)}
-                style={{
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  padding: '8px 12px',
-                  cursor: 'pointer',
-                  backgroundColor: '#fff',
-                  minHeight: '40px',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#007bff';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#ddd';
-                }}
+                className="category-select-field"
               >
                 {selectedCategoryIds.length > 0 ? (
                   <>
                     {getSelectedCategories().map((category) => (
                       <span
                         key={category.id}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '6px 12px',
-                          backgroundColor: '#007bff',
-                          color: 'white',
-                          borderRadius: '16px',
-                          fontSize: '13px',
-                          fontWeight: 500,
-                        }}
+                        className="category-selected-badge"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {category.name}
                         <button
                           type="button"
                           onClick={(e) => handleRemoveCategory(category.id, e)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontSize: '18px',
-                            lineHeight: 1,
-                            padding: 0,
-                            width: '18px',
-                            height: '18px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderRadius: '50%',
-                            transition: 'background-color 0.2s',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }}
+                          className="category-selected-badge-remove"
                         >
                           ×
                         </button>
                       </span>
                     ))}
-                    <span
-                      style={{
-                        color: '#666',
-                        fontSize: '14px',
-                        marginLeft: 'auto',
-                        paddingLeft: '8px',
-                      }}
-                    >
-                      ▼
-                    </span>
+                    <span className="category-select-arrow">▼</span>
                   </>
                 ) : (
                   <>
-                    <span style={{ 
-                      color: '#999',
-                      fontSize: '14px',
-                      flex: 1
-                    }}>
+                    <span className="category-select-placeholder">
                       Click to select categories
                     </span>
-                    <span style={{ color: '#666', fontSize: '18px' }}>▼</span>
+                    <span className="category-select-arrow">▼</span>
                   </>
                 )}
               </div>
@@ -730,103 +551,14 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
           <div className="form-section">
             <h3>Tutorials (Optional)</h3>
             {formData.tutorials.map((tutorial, index) => (
-              <div key={index} className="tutorial-item">
-                <div className="tutorial-header">
-                  <h4>Tutorial {index + 1}</h4>
-                  <button
-                    type="button"
-                    onClick={() => removeTutorial(index)}
-                    className="btn btn-delete-small"
-                  >
-                    Remove
-                  </button>
-                </div>
-                
-                {/* Переключатель New/Select */}
-                <div className="form-group">
-                  <label>Mode</label>
-                  <div className="mode-toggle">
-                    <button
-                      type="button"
-                      className={`mode-btn ${(tutorial.mode || 'new') === 'new' ? 'active' : ''}`}
-                      onClick={() => handleTutorialChange(index, 'mode', 'new')}
-                    >
-                      New
-                    </button>
-                    <button
-                      type="button"
-                      className={`mode-btn ${(tutorial.mode || 'new') === 'select' ? 'active' : ''}`}
-                      onClick={() => handleTutorialChange(index, 'mode', 'select')}
-                    >
-                      Select
-                    </button>
-                  </div>
-                </div>
-
-                {(tutorial.mode || 'new') === 'select' ? (
-                  // Режим Select: показываем селектор существующих tutorials
-                  <>
-                    <div className="form-group">
-                      <label>Select Tutorial *</label>
-                      <select
-                        value={tutorial.tutorial_id || ''}
-                        onChange={(e) => handleTutorialChange(index, 'tutorial_id', e.target.value)}
-                      >
-                        <option value="">Select Tutorial</option>
-                        {tutorials.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.label || `Tutorial #${t.id}`}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </>
-                ) : (
-                  // Режим New: показываем поля для создания нового tutorial
-                  <>
-                    <div className="form-group">
-                      <label>Tutorial URL *</label>
-                      <input
-                        type="url"
-                        value={tutorial.tutorial_url || ''}
-                        onChange={(e) => handleTutorialChange(index, 'tutorial_url', e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Label *</label>
-                      <input
-                        type="text"
-                        value={tutorial.label || ''}
-                        onChange={(e) => handleTutorialChange(index, 'label', e.target.value)}
-                        required
-                      />
-                    </div>
-                  </>
-                )}
-
-                {/* Поля start_sec и end_sec доступны в обоих режимах */}
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Start (sec)</label>
-                    <input
-                      type="number"
-                      value={tutorial.start_sec || ''}
-                      onChange={(e) => handleTutorialChange(index, 'start_sec', e.target.value)}
-                      min="0"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>End (sec)</label>
-                    <input
-                      type="number"
-                      value={tutorial.end_sec || ''}
-                      onChange={(e) => handleTutorialChange(index, 'end_sec', e.target.value)}
-                      min="0"
-                    />
-                  </div>
-                </div>
-              </div>
+              <TutorialEditor
+                key={index}
+                tutorial={tutorial}
+                index={index}
+                availableTutorials={tutorials}
+                onChange={handleTutorialChange}
+                onRemove={removeTutorial}
+              />
             ))}
             <button
               type="button"
@@ -849,131 +581,13 @@ const VideoReferenceForm = ({ video, onClose, onSuccess }) => {
       </div>
 
       {/* Модальное окно для выбора категорий */}
-      {isCategoryModalOpen && (
-        <div 
-          className="modal-overlay" 
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2000,
-          }}
-          onClick={() => setIsCategoryModalOpen(false)}
-        >
-          <div 
-            className="modal-content" 
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: '8px',
-              padding: '20px',
-              maxWidth: '600px',
-              width: '90%',
-              maxHeight: '80vh',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center',
-              marginBottom: '20px',
-              borderBottom: '1px solid #eee',
-              paddingBottom: '15px'
-            }}>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Select Categories</h3>
-              <button
-                onClick={() => setIsCategoryModalOpen(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '24px',
-                  cursor: 'pointer',
-                  color: '#666',
-                  padding: '0',
-                  width: '30px',
-                  height: '30px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                ×
-              </button>
-            </div>
-            
-            <div style={{ 
-              flex: 1,
-              overflowY: 'auto',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              padding: '12px',
-              marginBottom: '20px',
-            }}>
-              {rootCategories.length > 0 ? (
-                rootCategories.map((category) => renderCategory(category))
-              ) : (
-                <div style={{ padding: '20px', textAlign: 'center', color: '#999', fontSize: '14px' }}>
-                  No categories available
-                </div>
-              )}
-            </div>
-
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'flex-end', 
-              gap: '10px',
-              borderTop: '1px solid #eee',
-              paddingTop: '15px'
-            }}>
-              <button
-                type="button"
-                onClick={() => setIsCategoryModalOpen(false)}
-                style={{
-                  padding: '8px 16px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  backgroundColor: '#fff',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCategoryModalSave}
-                style={{
-                  padding: '8px 16px',
-                  border: 'none',
-                  borderRadius: '4px',
-                  backgroundColor: '#007bff',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#0056b3';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#007bff';
-                }}
-              >
-                Save ({selectedCategoryIds.length})
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CategoryModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        categories={categories}
+        selectedCategoryIds={selectedCategoryIds}
+        onSave={handleCategoryModalSave}
+      />
     </div>
   );
 };
